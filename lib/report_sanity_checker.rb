@@ -5,6 +5,12 @@ class ReportSanityChecker
   attr_accessor :pattern
   attr_accessor :verbose
 
+  attr_accessor :columns
+
+  #                 0      1        2       3     4      5      6    7      8
+  HEADERS      = %w(column relation virtual sql   src    alias  sort hidden cond)
+  HEADERS_SHOW =   [true,  false,   true,   true, false, false, true, true, true]
+
   def initialize
     @verbose = true
   end
@@ -37,6 +43,8 @@ class ReportSanityChecker
     filename.kind_of?(MiqReport) ? filename : MiqReport.new(YAML.load_file(filename))
   end
 
+  # does the filename suggest a db value?
+  # if it does not line up - then we will print to let people know
   def guess_class(filename)
     filename.split("/").last.split(".").first.split("-").first.gsub("_","::").split("__").first
   end
@@ -44,35 +52,9 @@ class ReportSanityChecker
   def check_report(filename)
     rpt = parse_file(filename)
 
-    includes_cols = includes_to_cols(rpt.db, rpt.include)
-
-    klass = rpt.db_class rescue nil
-
     tbl = Table.new
-    # make sure there is enough room for all columns
-    tbl.pad(0, rpt.col_order)
-    tbl.pad(0, rpt.cols)
-    tbl.pad(0, flds_to_strs(includes_cols))
-    tbl.pad(1, %w(association virtual db))
-    tbl.hide(1)
-    tbl.pad(2, %w(virtual custom db unknown))
-    tbl.format(2)
-    tbl.pad(3, %w(sql ruby))
-    # TODO: this attribute may be from another model, so klass is probably wrong here
-    tbl.format(3)
-    tbl.pad(4, %w(both col includes missing))
-    tbl.format(4)
-    tbl.hide(4)
-    tbl.pad(5, %w(alias))
-    tbl.format(5)
-    tbl.hide(5)
-    tbl.pad(6, %w(sort))
-    tbl.format(6)
-    tbl.pad(7, %w(hidden sql_only include sort_only))
-    tbl.format(7)
-    #tbl.hide(7) # typically want this, but for now, hiding it
-    tbl.pad(8, %w(cond))
-    tbl.format(8)
+    tbl.headings = visible_columns(*HEADERS)
+
     if verbose
       begin
         if filename.kind_of?(MiqReport)
@@ -85,21 +67,11 @@ class ReportSanityChecker
         end
 
         rpt.db_class # ensure this can be run
-        tbl.print_hdr("column", "relation", "virtual", "sql", "src", "alias", "sort", "hidden", "cond")
-        tbl.print_dash
         print_details(tbl, rpt)
+        tbl.print_all
       rescue NameError
-        puts "unknown class defined in ':db' field: #{rpt.db}"
+       puts "unknown class defined in ':db' field: #{rpt.db}"
       end
-    else # punted (havent updated this in a while)
-      sf = short_padded_filename(filename, 30)
-      if rpt.col_order.sort == (rpt.cols + includes_cols).sort
-        # this probably belongs in the summary
-        puts "#{sf}: col_order = rpt.cols #{"+ rpt.include" && includes_cols.present?}" if verbose
-      else
-        puts "#{sf}:"
-      end
-      print_summary(rpt)
     end
   end
 
@@ -114,6 +86,10 @@ class ReportSanityChecker
   end
 
   private
+
+  def visible_columns(*row)
+    row.each_with_index.select { |col, i| HEADERS_SHOW[i] }.map(&:first)
+  end
 
   # convert "includes" recursive hash to columns
   # only paying attention to "columns" and "includes" - hence the noteable_includes method
@@ -190,42 +166,13 @@ class ReportSanityChecker
     end
   end
 
-  SP = (" " * 30).freeze
-
-  # currently punted
-  def print_summary(rpt)
-    sp = SP
-    # columns defined via includes / (joins)  
-    includes_cols = flds_to_strs(includes_to_cols(rpt.db, rpt.include))
-
-    # NEEDED
-    # a header corresponds to each col_order
-    headers_match = rpt.col_order.size == rpt.headers.size # may want to make a smarter match than size
-    # are there extra attribtues in includes hash we were not expecting
-    # luckily there are none of these
-    # n_includes = noteable_includes?(rpt.include)
-
-    #?
-    cols_alias = rpt.cols.select { |c| c.include?(".") }
-    # are there columns in the col_order that are not in sql OR includes?
-    # luckily there are none of these
-    extra_col_order = rpt.col_order - rpt.cols - includes_cols
-    # cols brought back in sql but not displayed (in col_order)
-    extra_cols = rpt.cols - rpt.col_order
-    # cols brought back via includes, but not displayed (in col_order)
-    extra_includes = includes_cols - rpt.col_order
-
-    puts "#{sp}: extra col_order : #{extra_col_order.inspect}" if extra_col_order.present?
-    puts "#{sp}: extra cols      : #{extra_cols.inspect}" if extra_cols.present?
-    puts "#{sp}: cols_alias      : #{cols_alias.inspect}" if cols_alias.present?
-    puts "#{sp}: includes  : #{rpt.include.inspect}" if extra_includes.present? # || n_includes
-    puts "#{sp}: headers mismatch" unless headers_match
-  end
-
   def print_details(tbl, rpt)
+    # fields used for find (mostly reports)
     include_for_find = rpt.include_for_find || {}
+    # hash representing columns to include
     includes_cols = Set.new(flds_to_strs(includes_to_cols(rpt.db, rpt.include)))
 
+    # includes_to_tables is for older reports
     includes_tbls = rpt.try(:include_as_hash) || rpt.include && includes_to_tables(rpt.include) # || fallback
     includes_tbls = rpt.invent_includes if rpt.respond_to?(:invent_includes) && rpt.include.blank? # removed from yaml file
     includes_tbls ||= {}
@@ -360,6 +307,6 @@ class ReportSanityChecker
     # tags don't have attribute_supported_by_sql?
     sql_support = klass ? f.try(:attribute_supported_by_sql?) ? "sql" : "ruby" : "?"
 
-    tbl.print_col(col, vr, va, sql_support, col_src, is_alias, in_sort, in_col, in_miq)
+    tbl << visible_columns(col, vr, va, sql_support, col_src, is_alias, in_sort, in_col, in_miq)
   end
 end
