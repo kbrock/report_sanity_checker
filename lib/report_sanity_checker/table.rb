@@ -8,22 +8,14 @@
 
 class ReportSanityChecker
   class Table
+    attr_accessor :headings
+
     def initialize
       # current max width for the column
       @sizes = []
-      # block to format the column ( think no longer needed)
-      @fmt = []
-      # name of FORMATTING method to use (could probably directly use block)
-      @alignments = []
-      # false if we don't display this column
-      @display = []
-    end
 
-    # configure a column to be hidden
-    def hide(col) ; @display[col] = false ; end
-    def format(col, value = nil, alignment = :left, &block)
-      @fmt[col] = value ? FORMATTING[value] : block
-      @alignments[col] = alignment
+      @headings = []
+      @data = []
     end
 
     # configure padding for a column
@@ -39,7 +31,7 @@ class ReportSanityChecker
     def print_hdr(*values)
       print "| "
       values.each_with_index do |value, col|
-        print fmt(col, value, false), " | " if show?(col)
+        print fmt(col, value), " | "
       end
       print "\n"
     end
@@ -47,17 +39,31 @@ class ReportSanityChecker
     # TODO: add ":" to l/r pad
     def print_dash
       print "|"
-      print *@sizes.each_with_index.map { |_, i| (align(i) == :left ? ":" : "-") + "-" * (sizes(i) || 3) + (align(i) == :right ? ":" : "-") + "|" if show?(i)}
+      print *@sizes.each_with_index.map { |_, i| ":" + "-" * (sizes(i) || 3) + "-" + "|" }
       print "\n"
     end
-
 
     def print_col(*values)
       print "| "
       values.each_with_index do |value, col|
-        print fmt(col, value), " | " if show?(col)
+        print fmt(col, value), " | "
       end
       print "\n"
+    end
+
+    def <<(row)
+      row.each_with_index { |d, i| pad(i, [d]) }
+      @data << row
+    end
+
+    def print_all
+      @headings.each_with_index { |h, i| pad(i, [h]) }
+
+      print_hdr(*@headings)
+      print_dash
+      @data.each do |row|
+        print_col(*row)
+      end
     end
 
     private
@@ -70,13 +76,10 @@ class ReportSanityChecker
     private
 
     def sizes(col) ; @sizes[col] ; end
-    def fmt(col, val, do_format = true)
-      sz = sizes(col)
-      val = @fmt[col].call(val, sz) if (do_format && @fmt[col])
-      (FORMATTING[@alignments[col]] || LPAD).call(val, sz)
+    def fmt(col, val)
+      LPAD.call(val, sizes(col))
     end
-    def show?(col) ; @display[col] != false ; end
-    def align(col) ; @alignments[col] || :left ; end
+    def align(col) ; :left ; end
 
     def f_to_s(f, tgt = 1)
       if f.kind_of?(Numeric)
