@@ -43,6 +43,8 @@ class ReportSanityChecker
     filename.kind_of?(MiqReport) ? filename : MiqReport.new(YAML.load_file(filename))
   end
 
+  # does the filename suggest a db value?
+  # if it does not line up - then we will print to let people know
   def guess_class(filename)
     filename.split("/").last.split(".").first.split("-").first.gsub("_","::").split("__").first
   end
@@ -50,12 +52,7 @@ class ReportSanityChecker
   def check_report(filename)
     rpt = parse_file(filename)
 
-    includes_cols = includes_to_cols(rpt.db, rpt.include)
-
-    klass = rpt.db_class rescue nil
-
     tbl = Table.new
-
     tbl.headings = visible_columns(*HEADERS)
 
     if verbose
@@ -75,15 +72,6 @@ class ReportSanityChecker
       rescue NameError
        puts "unknown class defined in ':db' field: #{rpt.db}"
       end
-    else # punted (havent updated this in a while)
-      sf = short_padded_filename(filename, 30)
-      if rpt.col_order.sort == (rpt.cols + includes_cols).sort
-        # this probably belongs in the summary
-        puts "#{sf}: col_order = rpt.cols #{"+ rpt.include" && includes_cols.present?}" if verbose
-      else
-        puts "#{sf}:"
-      end
-      print_summary(rpt)
     end
   end
 
@@ -178,44 +166,13 @@ class ReportSanityChecker
     end
   end
 
-  SP = (" " * 30).freeze
-
-  # currently punted
-  def print_summary(rpt)
-    sp = SP
-    # columns defined via includes / (joins)  
-    includes_cols = flds_to_strs(includes_to_cols(rpt.db, rpt.include))
-
-    # NEEDED
-    # a header corresponds to each col_order
-    headers_match = rpt.col_order.size == rpt.headers.size # may want to make a smarter match than size
-    # are there extra attribtues in includes hash we were not expecting
-    # luckily there are none of these
-    # n_includes = noteable_includes?(rpt.include)
-
-    #?
-    cols_alias = rpt.cols.select { |c| c.include?(".") }
-    # are there columns in the col_order that are not in sql OR includes?
-    # luckily there are none of these
-    extra_col_order = rpt.col_order - rpt.cols - includes_cols
-    # cols brought back in sql but not displayed (in col_order)
-    extra_cols = rpt.cols - rpt.col_order
-    # cols brought back via includes, but not displayed (in col_order)
-    extra_includes = includes_cols - rpt.col_order
-
-    puts "#{sp}: extra col_order : #{extra_col_order.inspect}" if extra_col_order.present?
-    puts "#{sp}: extra cols      : #{extra_cols.inspect}" if extra_cols.present?
-    puts "#{sp}: cols_alias      : #{cols_alias.inspect}" if cols_alias.present?
-    puts "#{sp}: includes  : #{rpt.include.inspect}" if extra_includes.present? # || n_includes
-    puts "#{sp}: headers mismatch" unless headers_match
-  end
-
   def print_details(tbl, rpt)
     # fields used for find (mostly reports)
     include_for_find = rpt.include_for_find || {}
     # hash representing columns to include
     includes_cols = Set.new(flds_to_strs(includes_to_cols(rpt.db, rpt.include)))
 
+    # includes_to_tables is for older reports
     includes_tbls = rpt.try(:include_as_hash) || rpt.include && includes_to_tables(rpt.include) # || fallback
     includes_tbls = rpt.invent_includes if rpt.respond_to?(:invent_includes) && rpt.include.blank? # removed from yaml file
     includes_tbls ||= {}
