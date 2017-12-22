@@ -19,47 +19,31 @@ class ReportSanityChecker
     end
 
     # configure padding for a column
-    def pad(col, values)
-      @sizes[col] =
-        if values.kind_of?(Numeric)
-          [@sizes[col] || 0, values].max
-        else
-          (values.map { |v| v.try(&:size) || 0 } << (@sizes[col] || 0)).max
-        end
+    def pad(col, value)
+      @sizes[col] = [value.try(&:size) || 0, @sizes[col] || 0].max
     end
 
-    def print_hdr(*values)
-      print "| "
-      values.each_with_index do |value, col|
-        print fmt(col, value), " | "
-      end
-      print "\n"
-    end
-
-    # TODO: add ":" to l/r pad
     def print_dash
-      print "|"
-      print *@sizes.each_with_index.map { |_, i| ":" + "-" * (sizes(i) || 3) + "-" + "|" }
-      print "\n"
+      print "|", *@sizes.each_with_index.map { |_, i| ":" + "-" * (sizes(i) || 3) + "-" + "|" }, "\n"
     end
 
     def print_col(*values)
       print "| "
       values.each_with_index do |value, col|
-        print fmt(col, value), " | "
+        print "%-*s | " % [sizes(col), value]
       end
       print "\n"
     end
 
     def <<(row)
-      row.each_with_index { |d, i| pad(i, [d]) }
+      row.each_with_index { |d, i| pad(i, d) }
       @data << row
     end
 
     def print_all
-      @headings.each_with_index { |h, i| pad(i, [h]) }
+      @headings.each_with_index { |h, i| pad(i, h) }
 
-      print_hdr(*@headings)
+      print_col(*@headings)
       print_dash
       @data.each do |row|
         print_col(*row)
@@ -67,19 +51,8 @@ class ReportSanityChecker
     end
 
     private
-    # formatter for a string
-    NUTTIN = -> (value, size) { value }
-    RPAD = -> (value, size) { "%*s" % [size, value] }
-    LPAD = -> (value, size) { "%-*s" % [size, value] }
-    FORMATTING = { :right => RPAD, :left => LPAD }.freeze
-
-    private
 
     def sizes(col) ; @sizes[col] ; end
-    def fmt(col, val)
-      LPAD.call(val, sizes(col))
-    end
-    def align(col) ; :left ; end
 
     def f_to_s(f, tgt = 1)
       if f.kind_of?(Numeric)
