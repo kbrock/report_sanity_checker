@@ -92,7 +92,6 @@ class ReportSanityChecker
   end
 
   # convert "includes" recursive hash to columns
-  # only paying attention to "columns" and "includes" - hence the noteable_includes method
   # TODO: know when it is a virtual association
   def includes_to_cols(model, h, associations = [])
     return [] if h.blank?
@@ -103,29 +102,7 @@ class ReportSanityChecker
     end
   end
 
-  def includes_to_tables(h, associations = [])
-    ret = {}
-    return ret if h.blank?
-    h.each do |table, table_hash|
-      includes_to_cols(table_hash["includes"], ret[table.to_sym] = {})
-    end
-    ret
-  end
-
   # a, b, c
-
-  # in primary, but not in extras
-  def subtract_hash(primary, extras)
-    return primary unless primary.present? && extras.present?
-    primary.each_with_object({}) do |(n, v), h|
-      if extras[n]
-        v2 = subtract_hash(v, extras[n])
-        h[n] = v2 if v2.present?
-      else
-        h[n] = v
-      end
-    end
-  end
 
   def union_hash(primary, extras)
     return {} unless primary.present? && extras.present?
@@ -172,15 +149,9 @@ class ReportSanityChecker
     # hash representing columns to include
     includes_cols = Set.new(flds_to_strs(includes_to_cols(rpt.db, rpt.include)))
 
-    # includes_to_tables is for older reports
-    includes_tbls = rpt.try(:include_as_hash) || rpt.include && includes_to_tables(rpt.include) # || fallback
-    includes_tbls = rpt.invent_includes if rpt.respond_to?(:invent_includes) && rpt.include.blank? # removed from yaml file
+    includes_tbls = rpt.try(:include_as_hash)
+    includes_tbls = rpt.invent_includes if rpt.include.blank? # removed from yaml file
     includes_tbls ||= {}
-
-    # byebug if rpt.respond_to?(:invent_includes) && rpt.include && (rpt.invent_includes != includes_tbls)
-
-    full_includes = includes_tbls.deep_merge(include_for_find)
-
 
     # columns defined via includes / (joins)  
     rpt_cols = Set.new(rpt.cols)
@@ -192,8 +163,6 @@ class ReportSanityChecker
     else
       miq_col_names = Set.new
     end
-
-    # do we want to convert a column into a field?
 
     # --
     klass = rpt.db_class
@@ -254,15 +223,14 @@ class ReportSanityChecker
       print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
     end
 
-    #puts "includes: #{includes_tbls.inspect}" if includes_tbls.present?
-    puts
-    # this may be going on the asumption that we are removing include when it can be discovered
+    # puts "", "includes: #{includes_tbls.inspect}" if includes_tbls.present?
+    # this may be going on the assumption that we are removing include when it can be discovered
     # in the sort_order.
     # see https://github.com/ManageIQ/manageiq/pull/13675
     # see last message of https://github.com/ManageIQ/manageiq/pull/13675 (include changes were reverted)
-    puts "extra includes: #{include_for_find.inspect}" if include_for_find.present?
+    puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
     unneeded_iff = union_hash(includes_tbls, include_for_find)
-    puts "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
+    puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
   end
   
   def print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)

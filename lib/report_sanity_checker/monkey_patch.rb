@@ -5,6 +5,46 @@ if !MiqReport.method_defined?(:menu_name=)
   end
 end
 
+if !MiqReport.method_defined?(:include_as_hash)
+  class MiqReport
+    def include_as_hash(includes = include, klass = db_class, klass_cols = cols)
+      result = {}
+      if klass_cols && klass && klass.respond_to?(:virtual_attribute?)
+        klass_cols.each do |c|
+          result[c.to_sym] = {} if klass.virtual_attribute?(c) && !klass.attribute_supported_by_sql?(c)
+        end
+      end
+
+      if includes.kind_of?(Hash)
+        includes.each do |k, v|
+          k = k.to_sym
+          if k == :managed
+            result[:tags] = {}
+          else
+            assoc_reflection = klass.reflect_on_association(k)
+            assoc_klass = (assoc_reflection.options[:polymorphic] ? k : assoc_reflection.klass) if assoc_reflection
+
+            result[k] = include_as_hash(v && v["include"], assoc_klass, v && v["columns"])
+          end
+        end
+      elsif includes.kind_of?(Array)
+        includes.each { |i| result[i.to_sym] = {} }
+      end
+
+      result
+    end
+  end
+
+  def invent_includes
+    return {} unless col_order
+    col_order.each_with_object({}) do |col, ret|
+      next unless col.include?(".")
+      *rels, _col = col.split(".")
+      rels.inject(ret) { |h, rel| h[rel.to_sym] ||= {} } unless col =~ /managed\./
+    end
+  end
+end
+
 #if !MiqExpression.method_defined?(:fields)
 MiqExpression
 class MiqExpression
