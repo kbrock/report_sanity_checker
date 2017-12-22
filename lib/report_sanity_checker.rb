@@ -52,9 +52,6 @@ class ReportSanityChecker
   def check_report(filename)
     rpt = parse_file(filename)
 
-    tbl = Table.new
-    tbl.headings = visible_columns(*HEADERS)
-
     if verbose
       begin
         if filename.kind_of?(MiqReport)
@@ -67,8 +64,7 @@ class ReportSanityChecker
         end
 
         rpt.db_class # ensure this can be run
-        print_details(tbl, rpt)
-        tbl.print_all
+        print_details(rpt)
       rescue NameError
        puts "unknown class defined in ':db' field: #{rpt.db}"
       end
@@ -143,7 +139,10 @@ class ReportSanityChecker
     end
   end
 
-  def print_details(tbl, rpt)
+  def print_details(rpt)
+    tbl = Table.new
+    tbl.headings = visible_columns(*HEADERS)
+
     # fields used for find (mostly reports)
     include_for_find = rpt.include_for_find || {}
     # hash representing columns to include
@@ -166,62 +165,32 @@ class ReportSanityChecker
 
     # --
     klass = rpt.db_class
-    rpt.col_order.each do |col|
-      # are there columns in the col_order that are not in sql OR includes?
-      # luckily there are none of these
-      # --> inline
-      in_rpt  = rpt_cols.include?(col)
-      in_inc  = includes_cols.include?(col)
-      in_col  = rpt.col_order.include?(col) ? ""     : "hidden" # true
-      in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : ""
-      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    end
+    print_cols(tbl, klass, rpt.col_order, "hidden", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
 
     # cols brought back in sql but not displayed (present in col_order)
     # they may be used by custom ui logic or a ruby virtual attribute
     # typically this field is unneeded and can be removed
-    (rpt_cols - rpt.col_order).each do |col|
-      in_rpt  = rpt_cols.include?(col)
-      in_inc  = includes_cols.include?(col) # probably always false
-      in_col  = rpt.col_order.include?(col) ? ""     : "sql only" # false
-      in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : ""
-      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    end
+    sql_only = rpt_cols - rpt.col_order
+    print_cols(tbl, klass, sql_only, "sql only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+
     # cols brought back via includes, but not displayed (present in col_order)
     # the field may be used by custom ui logic or a ruby virtual attribute
     # do note, this was based upon the assumption that all includes could be derived from column names
     # this was rolled back - so this may not be completely relevant
-    (includes_cols - rpt.col_order).each do |col|
-      in_rpt  = rpt_cols.include?(col)
-      in_inc  = includes_cols.include?(col) # true by definition
-      in_col  = rpt.col_order.include?(col) ? ""     : "include" # false
-      in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : ""
-      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    end
+    include_only = includes_cols - rpt.col_order
+    print_cols(tbl, klass, include_only, "include", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+
     # cols in in_sort, but not defined (and not displayed)
     # Pretty sure the ui ignores this column
     # TODO: not sure what we should highlight here
-    (sort_cols - rpt.col_order - includes_cols - rpt_cols).each do |col|
-      in_rpt  = rpt_cols.include?(col)
-      in_inc  = includes_cols.include?(col)
-      in_col  = rpt.col_order.include?(col) ? ""     : "sort only" # false
-      in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : ""
-      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    end
+    sort_only = sort_cols - rpt.col_order - includes_cols - rpt_cols
+    print_cols(tbl, klass, sort_only, "sort only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
 
-    # for these: need to convert reports to using Field vs target....
-    (miq_col_names - rpt.col_order - includes_cols - rpt_cols).each do |col|
-      in_rpt  = rpt_cols.include?(col)
-      in_inc  = includes_cols.include?(col)
-      in_col  = rpt.col_order.include?(col) ? ""     : "cond only"
-      in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : "" # true
-      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    end
+    # for these: need to convert reports to using Field vs target...
+    cond_only = miq_col_names - rpt.col_order - includes_cols - rpt_cols
+    print_cols(tbl, klass, cond_only, "cond only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+
+    tbl.print_all
 
     # puts "", "includes: #{includes_tbls.inspect}" if includes_tbls.present?
     # this may be going on the assumption that we are removing include when it can be discovered
@@ -231,6 +200,17 @@ class ReportSanityChecker
     puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
+  end
+
+  def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, miq_col_names)
+    cols.each do |col|
+      in_rpt  = rpt_cols.include?(col)
+      in_inc  = includes_cols.include?(col)
+      in_col  = col_order.include?(col) ? ""     : desc # true
+      in_sort = sort_cols.include?(col)     ? "sort" : ""
+      in_miq  = miq_col_names.include?(col) ? "cond" : ""
+      print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
+    end
   end
   
   def print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
