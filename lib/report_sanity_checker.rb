@@ -39,8 +39,18 @@ class ReportSanityChecker
     end
   end
 
+  # Some report files are of a different form. convert them to a basic hash
+  #
+  # - MiqReport:
+  #   title: Copy of Chargeback - Test SL
+  #
   def parse_file(filename)
-    filename.kind_of?(MiqReport) ? filename : MiqReport.new(YAML.load_file(filename))
+    return filename if filename.kind_of?(MiqReport)
+    data = YAML.load_file(filename)
+    if data.kind_of?(Array) && data.size == 1 && data.first["MiqReport"]
+      data = data.first["MiqReport"]
+    end
+    MiqReport.new(data)
   end
 
   # does the filename suggest a db value?
