@@ -26,6 +26,8 @@ report_sanity_checker # reads product/reports
 report_sanity_checker ../manageiq-ui-classic/product/views/
 report_sanity_checker underutilized.yml
 report_sanity_checker -w # widgets
+
+RAILS_ROOT=vmdb report_sanity_checker underutilized.yml
 ```
 
 ## Sample output
