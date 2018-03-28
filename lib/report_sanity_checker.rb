@@ -167,38 +167,46 @@ class ReportSanityChecker
     sort_cols = Set.new(Array.wrap(rpt.sortby))
     if (miq_cols = rpt.conditions.try(:fields))
       # use fully qualified field names
-      miq_col_names = Set.new(miq_cols.map { |c| ((c.associations||[]) + [c.column]).compact.join(".") })
+      cond_cols = Set.new(miq_cols.map { |c| ((c.associations||[]) + [c.column]).compact.join(".") })
       #miq_cols = miq_cols.index_by { |c| c.column }
     else
-      miq_col_names = Set.new
+      cond_cols = Set.new
+    end
+
+    if (miq_cols = rpt.display_filter.try(:fields))
+      # use fully qualified field names
+      display_cols = Set.new(miq_cols.map { |c| ((c.associations||[]) + [c.column]).compact.join(".") })
+      #miq_cols = miq_cols.index_by { |c| c.column }
+    else
+      display_cols = Set.new
     end
 
     # --
     klass = rpt.db_class
-    print_cols(tbl, klass, rpt.col_order, "hidden", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+    print_cols(tbl, klass, rpt.col_order, "hidden", rpt_cols, includes_cols, rpt.col_order, sort_cols, cond_cols, display_cols)
 
     # cols brought back in sql but not displayed (present in col_order)
     # they may be used by custom ui logic or a ruby virtual attribute
     # typically this field is unneeded and can be removed
     sql_only = rpt_cols - rpt.col_order
-    print_cols(tbl, klass, sql_only, "sql only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+    print_cols(tbl, klass, sql_only, "sql only", rpt_cols, includes_cols, rpt.col_order, sort_cols, cond_cols, display_cols)
 
     # cols brought back via includes, but not displayed (present in col_order)
     # the field may be used by custom ui logic or a ruby virtual attribute
     # do note, this was based upon the assumption that all includes could be derived from column names
     # this was rolled back - so this may not be completely relevant
     include_only = includes_cols - rpt.col_order
-    print_cols(tbl, klass, include_only, "include", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+    print_cols(tbl, klass, include_only, "include", rpt_cols, includes_cols, rpt.col_order, sort_cols, cond_cols, display_cols)
 
     # cols in in_sort, but not defined (and not displayed)
     # Pretty sure the ui ignores this column
     # TODO: not sure what we should highlight here
     sort_only = sort_cols - rpt.col_order - includes_cols - rpt_cols
-    print_cols(tbl, klass, sort_only, "sort only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+    print_cols(tbl, klass, sort_only, "sort only", rpt_cols, includes_cols, rpt.col_order, sort_cols, cond_cols, display_cols)
 
     # for these: need to convert reports to using Field vs target...
-    cond_only = miq_col_names - rpt.col_order - includes_cols - rpt_cols
-    print_cols(tbl, klass, cond_only, "cond only", rpt_cols, includes_cols, rpt.col_order, sort_cols, miq_col_names)
+    cond_only = cond_cols - rpt.col_order - includes_cols - rpt_cols
+    print_cols(tbl, klass, cond_only, "cond only", rpt_cols, includes_cols, rpt.col_order, sort_cols, cond_cols, display_cols)
 
     tbl.print_all
 
@@ -212,13 +220,14 @@ class ReportSanityChecker
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
   end
 
-  def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, miq_col_names)
+  def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, cond_cols, display_cols)
     cols.each do |col|
       in_rpt  = rpt_cols.include?(col)
       in_inc  = includes_cols.include?(col)
       in_col  = col_order.include?(col) ? ""     : desc # true
       in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = miq_col_names.include?(col) ? "cond" : ""
+      in_miq  = (cond_cols.include?(col) ? "cond" : "") +
+                (display_cols.include?(col) ? "display" : "")
       print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
     end
   end
