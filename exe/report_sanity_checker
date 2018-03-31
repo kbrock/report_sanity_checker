@@ -7,7 +7,10 @@ require "widget_sanity_checker"
 require File.expand_path('config/environment', ENV["RAILS_ROOT"] || Dir.pwd)
 require_relative "../lib/report_sanity_checker/monkey_patch"
 
-if ARGV.include?("-w")
+
+# sample input:
+# RAILS_ROOT=../../manageiq ruby -I ./lib ./exe/report_sanity_checker -w ../../manageiq/widget_export_20180321_205146.yml
+if ARGV.delete("-w")
   WidgetSanityChecker.run(ARGV)
 else
   ReportSanityChecker.run(ARGV)

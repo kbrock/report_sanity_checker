@@ -1,27 +1,52 @@
 class WidgetSanityChecker
-  def filenames
-    Dir.glob("product/dashboard/widgets/*")
+  attr_accessor :pattern
+  def parse(args)
+    @pattern = args[0]
+    self
   end
 
   def widget_and_report_names
-    filenames.map do |filename|
+    # export file?
+    if File.exist?(@pattern)
+      filename = @pattern
       yaml = YAML.load(IO.read(filename))
-      if yaml["resource_type"] != "MiqReport"
-        puts "skipping #{filename}:: #{yaml["resource_type"]}"
-        #next([])
-        nil
+      if yaml.kind_of?(Array)
+        # export file
+        yaml.map do |widget|
+          widget = widget["MiqWidget"] if widget["MiqWidget"]
+          if widget["resource_type"] != "MiqReport"
+            puts "skipping #{filename}:: #{widget["resource_type"]}"
+            nil
+          else
+            resource_name = widget["resource_name"]
+            rpt = if(rpt_yaml = widget["MiqReportContent"])
+                    MiqReport.new(rpt_yaml.first["MiqReport"])
+                  end
+            [widget["title"], widget, resource_name || rpt.name, rpt]
+          end
+        end.compact
       else
-        resource_name = yaml["resource_name"]
-        [filename, yaml, resource_name]
+        # single report file
+        [[filename, yaml, yaml["resource_name"], yaml["MiqReportContent"]]]
       end
-    end.compact
+    else
+      Dir.glob("product/dashboard/widgets/*").map do |filename|
+        yaml = YAML.load(IO.read(filename))
+        if yaml["resource_type"] != "MiqReport"
+          puts "skipping #{filename}:: #{yaml["resource_type"]}"
+          nil
+        else
+          [filename, yaml, yaml["resource_name"], yaml["MiqReportContent"]]
+        end
+      end.compact
+    end
   end
 
   def run
     checker = ReportSanityChecker.new
-    widget_and_report_names.each do |widget, widget_yaml, rpt_name|
+    widget_and_report_names.each do |widget, widget_yaml, rpt_name, rpt|
       # could have loaded the yaml file with the report name, but this is easier
-      rpt = MiqReport.find_by(name: rpt_name)
+      rpt ||= MiqReport.find_by(name: rpt_name)
       puts "", "# WIDGET: #{widget}"
 # skipping timezone saves a lot of performance time
 # options:
@@ -37,6 +62,6 @@ class WidgetSanityChecker
   end
 
   def self.run(argv = ARGV)
-    new.run
+    checker = new.parse(argv).run
   end
 end
