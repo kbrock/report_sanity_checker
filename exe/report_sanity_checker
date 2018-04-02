@@ -3,8 +3,11 @@
 require "report_sanity_checker"
 require "widget_sanity_checker"
 
-# assuming running from vmdb directory
-require File.expand_path('config/environment', ENV["RAILS_ROOT"] || Dir.pwd)
+# If not running from vmdb directory, use RAILS_ROOT env variable
+MIQ_ROOT=File.expand_path('config/environment', ENV["RAILS_ROOT"] || Dir.pwd)
+puts "", "using MIQ ROOT #{MIQ_ROOT}", ""
+require MIQ_ROOT
+# monkey patching MiqReport and other Miq classes
 require_relative "../lib/report_sanity_checker/monkey_patch"
 
 

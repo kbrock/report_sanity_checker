@@ -63,21 +63,20 @@ class ReportSanityChecker
     rpt = parse_file(filename)
 
     if verbose
-      begin
-        if filename.kind_of?(MiqReport)
-          #puts "", "#{rpt.name}:", ""
-        else
-          name = filename
-          name << " (#{rpt.db})" if rpt.db != guess_class(filename)
+      if filename.kind_of?(MiqReport)
+        #puts "", "#{rpt.name}:", ""
+      else
+        name = filename
+        name << " (#{rpt.db})" if rpt.db != guess_class(filename)
 
-          puts "","#{name}:",""
-        end
-
-        rpt.db_class # ensure this can be run
-        print_details(rpt)
-      rescue NameError
-       puts "unknown class defined in ':db' field: #{rpt.db}"
+        puts "","#{name}:",""
       end
+      begin
+        rpt.db_class # ensure this can be run
+      rescue NameError
+        puts "unknown class defined in ':db' field: #{rpt.db}"
+      end
+      print_details(rpt)
     end
   end
 
