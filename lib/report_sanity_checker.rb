@@ -5,6 +5,8 @@ class ReportSanityChecker
   attr_accessor :pattern
   # report with column information
   attr_accessor :column_report
+  # run each report to ensure it works
+  attr_accessor :run_it
 
   attr_accessor :columns
 
@@ -14,12 +16,14 @@ class ReportSanityChecker
 
   def initialize
     @column_report = true
+    @run_it = false
   end
 
   def parse(args)
     # was: /#{args[0]}/i if args[0]
     # currently can be a filename, or a pattern. the pattern is assumed to be living in product/views,reports
     # Note: views and reports are now in separate repos (manageiq and manageiq-ui-classic)
+    @run_it = args.delete("--run")
     @pattern = args[0]
     self
   end
@@ -79,6 +83,7 @@ class ReportSanityChecker
       end
       print_details(rpt)
     end
+    run_report(rpt) if run_it
   end
 
   def self.run(argv = ARGV)
@@ -218,6 +223,18 @@ class ReportSanityChecker
     puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
+  end
+
+  def run_report(rpt)
+    #require "byebug"
+    #byebug
+    count = User.with_user(User.super_admin) do
+      rpt.paged_view_search.count
+    end
+    puts "", "report generated #{count} lines"
+  rescue => e
+    puts "", "could not run report", e.message
+    puts e.backtrace
   end
 
   def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, cond_cols, display_cols)
