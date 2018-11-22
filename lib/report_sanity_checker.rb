@@ -223,6 +223,8 @@ class ReportSanityChecker
     puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
+  rescue NameError => e
+    puts "not able to fetch class: #{e.message}"
   end
 
   def run_report(rpt)
