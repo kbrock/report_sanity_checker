@@ -4,12 +4,18 @@ require "report_sanity_checker"
 require "widget_sanity_checker"
 
 # If not running from vmdb directory, use RAILS_ROOT env variable
-MIQ_ROOT=File.expand_path('config/environment', ENV["RAILS_ROOT"] || Dir.pwd)
-puts "", "using MIQ ROOT #{MIQ_ROOT}", ""
+MIQ_ROOT=File.expand_path('config/environment.rb', ENV["RAILS_ROOT"] || Dir.pwd)
+
+if !File.exist?(MIQ_ROOT)
+  puts "", "Please set $RAILS_ROOT to manageiq root directory."
+  puts "", "(Could not find #{MIQ_ROOT})", ""
+  exit 1
+end
+
 require MIQ_ROOT
+
 # monkey patching MiqReport and other Miq classes
 require_relative "../lib/report_sanity_checker/monkey_patch"
-
 
 # sample input:
 # RAILS_ROOT=../../manageiq ruby -I ./lib ./exe/report_sanity_checker -w ../../manageiq/widget_export_20180321_205146.yml
