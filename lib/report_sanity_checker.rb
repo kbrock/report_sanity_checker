@@ -3,7 +3,8 @@ require_relative "report_sanity_checker/table"
 
 class ReportSanityChecker
   attr_accessor :pattern
-  attr_accessor :verbose
+  # report with column information
+  attr_accessor :column_report
 
   attr_accessor :columns
 
@@ -12,7 +13,7 @@ class ReportSanityChecker
   HEADERS_SHOW =   [true,  false,   true,   true, false, false, true, true, true]
 
   def initialize
-    @verbose = true
+    @column_report = true
   end
 
   def parse(args)
@@ -62,7 +63,7 @@ class ReportSanityChecker
   def check_report(filename)
     rpt = parse_file(filename)
 
-    if verbose
+    if column_report
       if filename.kind_of?(MiqReport)
         #puts "", "#{rpt.name}:", ""
       else
