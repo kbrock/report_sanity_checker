@@ -163,9 +163,15 @@ class ReportSanityChecker
     # hash representing columns to include
     includes_cols = Set.new(flds_to_strs(includes_to_cols(rpt.db, rpt.include)))
 
-    includes_tbls = rpt.try(:include_as_hash)
-    includes_tbls = rpt.invent_includes if rpt.include.blank? # removed from yaml file
-    includes_tbls ||= {}
+    includes_available = rpt.include.present?
+    # what includes are in the report file (and col's virtual attributes)
+    includes_declared  = rpt.include_as_hash
+    # what includes would be invented from col_sort
+    includes_generated = rpt.invent_includes
+    # what includes would be used by the sort (via :include or :col_sort) + include_for_find merged in)
+    full_includes_tbls = rpt.get_include_for_find
+    # full_includes without include_for_find merged in
+    includes_tbls = includes_available ? includes_declared : includes_generated
 
     # columns defined via includes / (joins)  
     rpt_cols = Set.new(rpt.cols)
@@ -215,14 +221,29 @@ class ReportSanityChecker
 
     tbl.print_all
 
-    # puts "", "includes: #{includes_tbls.inspect}" if includes_tbls.present?
-    # this may be going on the assumption that we are removing include when it can be discovered
-    # in the sort_order.
     # see https://github.com/ManageIQ/manageiq/pull/13675
     # see last message of https://github.com/ManageIQ/manageiq/pull/13675 (include changes were reverted)
+    if includes_available
+      # include_for_find can make up for missing entries in includes_declared - merging it
+      sm_includes = union_hash(includes_declared, includes_generated)
+      declared_v_generated_includes = union_hash(includes_declared, includes_generated.deep_merge(include_for_find))
+      if declared_v_generated_includes == includes_declared
+        puts "", "unneeded 'includes:' block (this is only accurate as of I release)"
+      else
+        puts "", "includes declared: #{includes_declared}"
+        puts "includes generated: #{includes_generated}"
+      end
+    elsif rpt.include
+      puts "", "unneeded blank includes block"
+    end
+    # these are not needed for the query (may be needed for the screen or ruby attributes)
     puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
+    # these are already generated, not needed to add them
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
+    puts "includes: #{full_includes_tbls}"
+    # invalid entries
+    trace_includes(klass, full_includes_tbls) if full_includes_tbls
   rescue NameError => e
     puts "not able to fetch class: #{e.message}"
   end
@@ -294,5 +315,16 @@ class ReportSanityChecker
     sql_support = klass ? f.try(:attribute_supported_by_sql?) ? "sql" : "ruby" : "?"
 
     tbl << visible_columns(col, vr, va, sql_support, col_src, is_alias, in_sort, in_col, in_miq)
+  end
+
+  def trace_includes(klass, includes)
+    klass_reflections = klass.reflections
+    includes.each do |k, v|
+      if relation = klass_reflections[k.to_s]
+        trace_includes(relation.klass, v) if includes.present? # and relation not polymorphic
+      elsif !klass.virtual_attribute?(k)
+        puts "unknown includes: #{klass.name}.#{k}"
+      end
+    end
   end
 end
