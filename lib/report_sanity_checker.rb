@@ -249,15 +249,34 @@ class ReportSanityChecker
   end
 
   def run_report(rpt)
-    #require "byebug"
-    #byebug
+    # rpt.generate_table(:user => User.super_admin)
     count = User.with_user(User.super_admin) do
-      rpt.paged_view_search.count
+      _generate_table(rpt).size
     end
-    puts "", "report generated #{count} lines"
+
+    puts "", "report ran with #{count} rows"
   rescue => e
     puts "", "could not run report", e.message
     puts e.backtrace
+  end
+
+  def _generate_table(rpt, options = {})
+    #return build_table_from_report(rpt, options) if rpt.db == rpt.class.name # Build table based on data from passed in report object
+    raise "table_from_report not supported" if rpt.db == rpt.class.name # Build table based on data from passed in report object
+    rpt._generate_table_prep
+
+    results = if rpt.custom_results_method
+                rpt.generate_custom_method_results(options)
+              elsif rpt.performance
+                rpt.generate_performance_results(options)
+              elsif rpt.interval == 'daily' && rpt.db_klass <= MetricRollup
+                rpt.generate_daily_metric_rollup_results(options)
+              elsif rpt.interval
+                rpt.generate_interval_metric_results(options)
+              else
+                rpt.generate_basic_results(options)
+              end
+    results
   end
 
   def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, cond_cols, display_cols)
