@@ -23,6 +23,7 @@ class ReportSanityChecker
     # was: /#{args[0]}/i if args[0]
     # currently can be a filename, or a pattern. the pattern is assumed to be living in product/views,reports
     # Note: views and reports are now in separate repos (manageiq and manageiq-ui-classic)
+    ActiveRecord::Base.logger = Logger.new(STDOUT) if args.delete("-v")
     @run_it = args.delete("--run")
     @pattern = args[0]
     self
