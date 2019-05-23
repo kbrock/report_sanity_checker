@@ -249,10 +249,11 @@ class ReportSanityChecker
     puts "not able to fetch class: #{e.message}"
   end
 
-  def run_report(rpt)
+  def run_report(rpt, options = {})
     # rpt.generate_table(:user => User.super_admin)
     count = User.with_user(User.super_admin) do
-      _generate_table(rpt).size
+      rslt = _generate_table(rpt, options)
+      rslt.size
     end
 
     puts "", "report ran with #{count} rows"
@@ -264,15 +265,15 @@ class ReportSanityChecker
   def _generate_table(rpt, options = {})
     #return build_table_from_report(rpt, options) if rpt.db == rpt.class.name # Build table based on data from passed in report object
     raise "table_from_report not supported" if rpt.db == rpt.class.name # Build table based on data from passed in report object
-    rpt._generate_table_prep
+    rpt.send(:_generate_table_prep)
 
-    results = if rpt.custom_results_method
+    results = if rpt.send(:custom_results_method)
                 rpt.generate_custom_method_results(options)
               elsif rpt.performance
                 rpt.generate_performance_results(options)
-              elsif rpt.interval == 'daily' && rpt.db_klass <= MetricRollup
+              elsif rpt.send(:interval) == 'daily' && rpt.db_klass <= MetricRollup
                 rpt.generate_daily_metric_rollup_results(options)
-              elsif rpt.interval
+              elsif rpt.send(:interval)
                 rpt.generate_interval_metric_results(options)
               else
                 rpt.generate_basic_results(options)
