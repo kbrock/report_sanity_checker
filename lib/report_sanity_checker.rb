@@ -271,7 +271,7 @@ class ReportSanityChecker
                 rpt.generate_custom_method_results(options)
               elsif rpt.performance
                 rpt.generate_performance_results(options)
-              elsif rpt.send(:interval) == 'daily' && rpt.db_klass <= MetricRollup
+              elsif rpt.send(:interval) == 'daily' && rpt.send(:db_klass) <= MetricRollup
                 rpt.generate_daily_metric_rollup_results(options)
               elsif rpt.send(:interval)
                 rpt.generate_interval_metric_results(options)
