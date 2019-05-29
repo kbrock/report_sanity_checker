@@ -86,6 +86,11 @@ if !MiqExpression::Field.method_defined?(:virtual_reflection?)
 
     def collect_reflections
       klass = model
+      if model.respond_to?(:collect_reflections)
+        return model.collect_reflections(associations) ||
+          raise(ArgumentError, "One or more associations are invalid: #{associations.join(", ")}")
+      end
+
       associations.collect do |name|
         reflection = klass.reflect_on_association(name)
         if reflection.nil?
@@ -100,14 +105,5 @@ if !MiqExpression::Field.method_defined?(:virtual_reflection?)
       end
     end
 
-    def collect_reflections_with_virtual(association_names)
-      klass = model
-      associations.collect do |name|
-        reflection = klass.reflection_with_virtual(name) ||
-                     raise(ArgumentError, "One or more associations are invalid: #{associations.join(", ")}")
-        klass = reflection.klass
-        reflection
-      end
-    end
   end
 end
