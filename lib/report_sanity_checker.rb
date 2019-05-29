@@ -343,7 +343,9 @@ class ReportSanityChecker
     includes.each do |k, v|
       if relation = klass_reflections[k.to_s]
         trace_includes(relation.klass, v) if includes.present? # and relation not polymorphic
-      elsif !klass.virtual_attribute?(k)
+      elsif klass.virtual_attribute?(k)
+      elsif klass.virtual_reflection?(k)
+      else
         puts "unknown includes: #{klass.name}.#{k}"
       end
     end
