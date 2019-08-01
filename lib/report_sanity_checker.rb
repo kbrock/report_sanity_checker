@@ -20,8 +20,6 @@ class ReportSanityChecker
   end
 
   def parse(args)
-    # was: /#{args[0]}/i if args[0]
-    # currently can be a filename, or a pattern. the pattern is assumed to be living in product/views,reports
     # Note: views and reports are now in separate repos (manageiq and manageiq-ui-classic)
     ActiveRecord::Base.logger = Logger.new(STDOUT) if args.delete("-v")
     @run_it = args.delete("--run")
@@ -134,16 +132,6 @@ class ReportSanityChecker
   def flds_to_strs(flds)
     flds.map { |f| (f.associations + [f.column]).join(".") }
   end
-
-  # # any includes that look funny?
-  # def noteable_includes?(h)
-  #   return false if h.blank?
-  #   h.each do |table, table_hash|
-  #     return true if (table_hash.keys - %w(includes columns)).present?
-  #     return true if noteable_includes?(table_hash["includes"])
-  #   end
-  #   false
-  # end
 
   # reports are typically in product/view/*.yml, this abbreviates that name, and padds to the left
   def short_padded_filename(filename, filenamesize)
