@@ -2,7 +2,7 @@ require_relative "report_sanity_checker/version"
 require_relative "report_sanity_checker/table"
 
 class ReportSanityChecker
-  attr_accessor :pattern
+  attr_accessor :patterns
   # report with column information
   attr_accessor :column_report
   # run each report to ensure it works
@@ -25,13 +25,17 @@ class ReportSanityChecker
     # Note: views and reports are now in separate repos (manageiq and manageiq-ui-classic)
     ActiveRecord::Base.logger = Logger.new(STDOUT) if args.delete("-v")
     @run_it = args.delete("--run")
-    @pattern = args[0]
+    @patterns = args
     self
   end
 
   def filenames
-    if pattern
-      if Dir.exist?(pattern)
+    return Dir["product/{views,reports}/**/*.{yaml,yml}"] unless patterns
+
+    patterns.flat_map do |pattern|
+      if pattern.size > 1
+        pattern
+      elsif Dir.exist?(pattern)
         self.pattern = "#{pattern}/" unless pattern.ends_with?("/")
         Dir["#{pattern}**/*.{yaml,yml}"]
       elsif File.exist?(pattern)
@@ -40,8 +44,6 @@ class ReportSanityChecker
         pattern_re = /#{pattern}/i
         Dir["product/{views,reports}/**/*.{yaml,yml}"].select { |f| f =~ pattern_re }
       end
-    else
-      Dir["product/{views,reports}/**/*.{yaml,yml}"]
     end
   end
 
