@@ -75,7 +75,7 @@ class ReportSanityChecker
         #puts "", "#{rpt.name}:", ""
       else
         name = filename
-        name << " (#{rpt.db})" if rpt.db != guess_class(filename)
+        name = "#{name} (#{rpt.db})" if rpt.db != guess_class(filename)
 
         puts "","#{name}:",""
       end
