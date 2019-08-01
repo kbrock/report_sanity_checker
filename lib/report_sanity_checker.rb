@@ -253,12 +253,14 @@ class ReportSanityChecker
 
   def run_report(rpt, options = {})
     # rpt.generate_table(:user => User.super_admin)
-    count = User.with_user(User.super_admin) do
+    count, timing = User.with_user(User.super_admin) do
       rslt = _generate_table(rpt, options)
-      rslt.size
+      start = Time.now
+      [rslt.to_a.size, Time.now - start]
     end
 
-    puts "", "report ran with #{count} rows"
+    fmt_time = Time.at(timing).utc.strftime("%H:%M:%S:%U")
+    puts "", "report ran with #{count} rows in #{fmt_time}ms"
   rescue => e
     puts "", "could not run report", e.message
     puts e.backtrace
