@@ -291,8 +291,7 @@ class ReportSanityChecker
       in_inc  = includes_cols.include?(col)
       in_col  = col_order.include?(col) ? ""     : desc # true
       in_sort = sort_cols.include?(col)     ? "sort" : ""
-      in_miq  = (cond_cols.include?(col) ? "cond" : "") +
-                (display_cols.include?(col) ? "display" : "")
+      in_miq  = [cond_cols.include?(col) ? "cond" : nil, display_cols.include?(col) ? "display" : nil].compact.join(" ")
       print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
     end
   end
