@@ -28,16 +28,14 @@ class ReportSanityChecker
   end
 
   def filenames
-    return Dir["product/{views,reports}/**/*.{yaml,yml}"] unless patterns
+    return Dir["product/{views,reports}/**/*.{yaml,yml}"] if patterns.empty?
 
     patterns.flat_map do |pattern|
-      if pattern.size > 1
-        pattern
-      elsif Dir.exist?(pattern)
-        self.pattern = "#{pattern}/" unless pattern.ends_with?("/")
+      if Dir.exist?(pattern)
+        pattern = "#{pattern}/" unless pattern.ends_with?("/")
         Dir["#{pattern}**/*.{yaml,yml}"]
       elsif File.exist?(pattern)
-        Dir[pattern]
+        pattern
       else
         pattern_re = /#{pattern}/i
         Dir["product/{views,reports}/**/*.{yaml,yml}"].select { |f| f =~ pattern_re }
