@@ -260,10 +260,10 @@ class ReportSanityChecker
 
     if run_it
       end_time = Time.now
-      fmt_all = Time.at(end_time - start_time).utc.strftime("%H:%M:%S:%U")
-      fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S:%U")
-      fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S:%U")
-      puts "", "report ran with #{count} rows in #{fmt_all}ms. table: #{fmt_table}, fetch: #{fmt_fetch}"
+      fmt_all = Time.at(end_time - start_time).utc.strftime("%H:%M:%S") # %U for ms
+      fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S")
+      fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S")
+      puts "", "report ran with #{count} rows in #{fmt_all}s. table: #{fmt_table}s, fetch: #{fmt_fetch}s"
     end
   rescue => e
     puts "", "could not run report", e.message
