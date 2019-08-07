@@ -245,20 +245,26 @@ class ReportSanityChecker
     return unless print_sql || run_it
 
     # rpt.generate_table(:user => User.super_admin)
-    count, timing = User.with_user(User.super_admin) do
+    start_time = fetch_time = Time.now
+    count = User.with_user(User.super_admin) do
       rslt = _generate_table(rpt, options)
       puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
       if run_it
-        start = Time.now
+        fetch_time = Time.now
         sz = rslt.to_a.size
-        [sz, Time.now - start]
+        sz
       else
-        [0, 0]
+        0
       end
     end
 
-    fmt_time = Time.at(timing).utc.strftime("%H:%M:%S:%U")
-    puts "", "report ran with #{count} rows in #{fmt_time}ms" if run_it
+    if run_it
+      end_time = Time.now
+      fmt_all = Time.at(end_time - start_time).utc.strftime("%H:%M:%S:%U")
+      fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S:%U")
+      fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S:%U")
+      puts "", "report ran with #{count} rows in #{fmt_all}ms. table: #{fmt_table}, fetch: #{fmt_fetch}"
+    end
   rescue => e
     puts "", "could not run report", e.message
     puts e.backtrace
