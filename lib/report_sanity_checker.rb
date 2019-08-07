@@ -7,6 +7,8 @@ class ReportSanityChecker
   attr_accessor :column_report
   # run each report to ensure it works
   attr_accessor :run_it
+  # print sql for each report
+  attr_accessor :print_sql
 
   attr_accessor :columns
 
@@ -17,12 +19,14 @@ class ReportSanityChecker
   def initialize
     @column_report = true
     @run_it = false
+    @print_sql = false
   end
 
   def parse(args)
     # Note: views and reports are now in separate repos (manageiq and manageiq-ui-classic)
     ActiveRecord::Base.logger = Logger.new(STDOUT) if args.delete("-v")
     @run_it = args.delete("--run")
+    @print_sql = args.delete("--sql")
     @patterns = args
     self
   end
@@ -82,7 +86,7 @@ class ReportSanityChecker
       end
       print_details(rpt)
     end
-    run_report(rpt) if run_it
+    run_report(rpt)
   end
 
   def self.run(argv = ARGV)
@@ -238,15 +242,23 @@ class ReportSanityChecker
   end
 
   def run_report(rpt, options = {})
+    return unless print_sql || run_it
+
     # rpt.generate_table(:user => User.super_admin)
     count, timing = User.with_user(User.super_admin) do
       rslt = _generate_table(rpt, options)
-      start = Time.now
-      [rslt.to_a.size, Time.now - start]
+      puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
+      if run_it
+        start = Time.now
+        sz = rslt.to_a.size
+        [sz, Time.now - start]
+      else
+        [0, 0]
+      end
     end
 
     fmt_time = Time.at(timing).utc.strftime("%H:%M:%S:%U")
-    puts "", "report ran with #{count} rows in #{fmt_time}ms"
+    puts "", "report ran with #{count} rows in #{fmt_time}ms" if run_it
   rescue => e
     puts "", "could not run report", e.message
     puts e.backtrace
