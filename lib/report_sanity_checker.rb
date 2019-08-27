@@ -241,29 +241,27 @@ class ReportSanityChecker
     puts "not able to fetch class: #{e.message}"
   end
 
-  def run_report(rpt, options = {})
+  def run_report(rpt, options = {:limit => 1000})
     return unless print_sql || run_it
 
     # rpt.generate_table(:user => User.super_admin)
-    start_time = fetch_time = Time.now
-    count = User.with_user(User.super_admin) do
-      rslt = _generate_table(rpt, options)
-      puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
+    User.with_user(User.super_admin) do
       if run_it
+        start_time = fetch_time = Time.now
+        count = 0
+        rslt = _generate_table(rpt, options)
+        puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
         fetch_time = Time.now
-        sz = rslt.to_a.size
-        sz
-      else
-        0
+        count = rslt.to_a.size
+        end_time  = Time.now
+        fmt_all   = Time.at(end_time - start_time).utc.strftime("%H:%M:%S") # %U for ms
+        fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S")
+        fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S")
+        puts "", "report ran with #{count} rows in #{fmt_all}s. table: #{fmt_table}s, fetch: #{fmt_fetch}s"
+      elsif print_sql
+        rslt = _generate_table(rpt, options)
+        puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
       end
-    end
-
-    if run_it
-      end_time = Time.now
-      fmt_all = Time.at(end_time - start_time).utc.strftime("%H:%M:%S") # %U for ms
-      fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S")
-      fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S")
-      puts "", "report ran with #{count} rows in #{fmt_all}s. table: #{fmt_table}s, fetch: #{fmt_fetch}s"
     end
   rescue => e
     puts "", "could not run report", e.message
