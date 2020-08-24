@@ -87,6 +87,10 @@ class ReportSanityChecker
       print_details(rpt)
     end
     run_report(rpt)
+  rescue => e
+    puts "error processing #{filename}"
+    puts e.message
+    puts e.backtrace
   end
 
   def self.run(argv = ARGV)
