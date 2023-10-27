@@ -332,13 +332,14 @@ class ReportSanityChecker
   end
   
   def print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
-    *class_names, col_name = [klass.name] + col.split(".")
-    field_name = "#{class_names.join(".")}-#{col_name}"
+    *class_names, col_name = [klass&.name || "unknown"] + col.split(".")
+    field_name = "#{class_names.join(".")}-#{col_name.downcase}"
 
     f = MiqExpression.parse_field_or_tag(field_name)
     is_alias = col.include?(".") ? "alias" : nil
     col_src = in_rpt ? (in_inc ? "both" : "col") : (in_inc ? "includes" : "missing")
 
+    STDERR.puts "problem houston: column #{col} should contain only lowercase letters" if col.match?(/[A-Z]/)
     STDERR.puts "problem houston: #{klass}...#{col} (#{field_name})" if f.nil?
 
     # 1
