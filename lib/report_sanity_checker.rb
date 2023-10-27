@@ -259,13 +259,14 @@ class ReportSanityChecker
   def run_report(rpt, options = {:limit => 1000})
     return unless print_sql || run_it
 
+    # code based upon MiqReport::Generator#generate_table
     # rpt.generate_table(:user => User.super_admin)
     User.with_user(User.super_admin) do
       if run_it
         start_time = fetch_time = Time.now
         count = 0
         rslt = _generate_table(rpt, options)
-        puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
+        puts_table_sql(rslt) if print_sql
         fetch_time = Time.now
         count = rslt.to_a.size
         end_time  = Time.now
@@ -275,7 +276,7 @@ class ReportSanityChecker
         puts "", "report ran with #{count} rows in #{fmt_all}s. table: #{fmt_table}s, fetch: #{fmt_fetch}s"
       elsif print_sql
         rslt = _generate_table(rpt, options)
-        puts "sql", (rslt.to_sql rescue "sql issues") if print_sql
+        puts_table_sql(rslt) if print_sql
       end
     end
   rescue => e
@@ -284,23 +285,39 @@ class ReportSanityChecker
   end
 
   # copy of MiqReport::Generator#_generate_table
+  def generate_table_method(rpt)
+    if rpt.db == rpt.class.name # Build table based on data from passed in report object
+      ["table_from_report", nil] # "build_table_from_report"
+    elsif rpt.send(:custom_results_method)
+      ["custom_method", "generate_custom_method_results"]
+    elsif rpt.performance
+      ["performance", "generate_performance_results"]
+    elsif rpt.send(:interval) == 'daily' && rpt.send(:db_klass) <= MetricRollup
+      ["daily rollup", "generate_daily_metric_rollup_results"]
+    elsif rpt.send(:interval)
+      ["interval rollup", "generate_interval_metric_results"]
+    else
+      ["basic", "generate_basic_results"]
+    end
+  end
+
+  # copy of MiqReport::Generator#_generate_table
   def _generate_table(rpt, options = {})
+    pretty_name, method_name = generate_table_method(rpt)
     #return build_table_from_report(rpt, options) if rpt.db == rpt.class.name # Build table based on data from passed in report object
-    raise "table_from_report not supported" if rpt.db == rpt.class.name # Build table based on data from passed in report object
+    raise "#{pretty_name} not supported in sanity checker yet" if method_name.nil?
     rpt.send(:_generate_table_prep)
 
-    results = if rpt.send(:custom_results_method)
-                rpt.generate_custom_method_results(options)
-              elsif rpt.performance
-                rpt.generate_performance_results(options)
-              elsif rpt.send(:interval) == 'daily' && rpt.send(:db_klass) <= MetricRollup
-                rpt.generate_daily_metric_rollup_results(options)
-              elsif rpt.send(:interval)
-                rpt.generate_interval_metric_results(options)
-              else
-                rpt.generate_basic_results(options)
-              end
-    results
+    puts "", "generate_table (via #{pretty_name})"
+    rpt.send(method_name, options)
+  end
+
+  def puts_table_sql(rslt)
+    if rslt.respond_to?(:to_sql)
+      puts "sql", rslt.to_sql rescue "sql issues"
+    else
+      puts "sql not supported by #{rslt.class.name}#{" (#{rslt.size}) rows" if rslt.kind_of?(Array)}"
+    end
   end
 
   def print_cols(tbl, klass, cols, desc, rpt_cols, includes_cols, col_order, sort_cols, cond_cols, display_cols)
@@ -353,7 +370,7 @@ class ReportSanityChecker
         end
 
     # 3
-    # tags don't have attribute_supported_by_sql?
+    # TODO: add MiqExpression::Tag#attribute_supported_by_sql?
     sql_support = klass ? f.try(:attribute_supported_by_sql?) ? "sql" : "ruby" : "?"
 
     tbl << visible_columns(col, vr, va, sql_support, col_src, is_alias, in_sort, in_col, in_miq)
