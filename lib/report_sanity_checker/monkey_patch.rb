@@ -5,46 +5,6 @@ if !MiqReport.method_defined?(:menu_name=)
   end
 end
 
-if !MiqReport.method_defined?(:include_as_hash)
-  class MiqReport
-    def include_as_hash(includes = include, klass = db_class, klass_cols = cols)
-      result = {}
-      if klass_cols && klass && klass.respond_to?(:virtual_attribute?)
-        klass_cols.each do |c|
-          result[c.to_sym] = {} if klass.virtual_attribute?(c) && !klass.attribute_supported_by_sql?(c)
-        end
-      end
-
-      if includes.kind_of?(Hash)
-        includes.each do |k, v|
-          k = k.to_sym
-          if k == :managed
-            result[:tags] = {}
-          else
-            assoc_reflection = klass.reflect_on_association(k)
-            assoc_klass = (assoc_reflection.options[:polymorphic] ? k : assoc_reflection.klass) if assoc_reflection
-
-            result[k] = include_as_hash(v && v["include"], assoc_klass, v && v["columns"])
-          end
-        end
-      elsif includes.kind_of?(Array)
-        includes.each { |i| result[i.to_sym] = {} }
-      end
-
-      result
-    end
-  end
-
-  def invent_includes
-    return {} unless col_order
-    col_order.each_with_object({}) do |col, ret|
-      next unless col.include?(".")
-      *rels, _col = col.split(".")
-      rels.inject(ret) { |h, rel| h[rel.to_sym] ||= {} } unless col =~ /managed\./
-    end
-  end
-end
-
 #if !MiqExpression.method_defined?(:fields)
 MiqExpression
 class MiqExpression
@@ -71,39 +31,21 @@ end
 #end
 
 if !MiqExpression::Field.method_defined?(:virtual_reflection?)
-  class MiqExpression::Field
-    def virtual_attribute?
-      target.virtual_attribute?(column)
+  class MiqExpression::Target
+    # @return true if column is a database column
+    def db_column?
+      target.has_attribute?(column) ||
+        target.try(:attribute_alias?, column)
     end
-
+  end
+  class MiqExpression::Field
+    # TODO: add to MiqExpression::Field
     def virtual_reflection?
       associations.present? && (model.follow_associations_with_virtual(associations) != model.follow_associations(associations))
+    rescue ArgumentError
+      # polymorphic is throwing us
+      # assume the worst
+      true
     end
-    # old version doesn't include virtual_reflection?
-    def attribute_supported_by_sql?
-      !custom_attribute_column? && target.attribute_supported_by_sql?(column) && !virtual_reflection?
-    end
-
-    def collect_reflections
-      klass = model
-      if model.respond_to?(:collect_reflections)
-        return model.collect_reflections(associations) ||
-          raise(ArgumentError, "One or more associations are invalid: #{associations.join(", ")}")
-      end
-
-      associations.collect do |name|
-        reflection = klass.reflect_on_association(name)
-        if reflection.nil?
-          if klass.reflection_with_virtual(name)
-            break
-          else
-            raise ArgumentError, "One or more associations are invalid: #{association_names.join(", ")}"
-          end
-        end
-        klass = reflection.klass
-        reflection
-      end
-    end
-
   end
 end

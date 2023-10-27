@@ -355,7 +355,7 @@ class ReportSanityChecker
       # end
     # 2
       va = 
-        if f.kind_of?(MiqExpression::Tag)
+        if f.kind_of?(MiqExpression::Tag) # => f.tag?
           "custom"
         elsif f.virtual_reflection?
           "join"
