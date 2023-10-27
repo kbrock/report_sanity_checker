@@ -27,6 +27,13 @@ class ReportSanityChecker
     ActiveRecord::Base.logger = Logger.new(STDOUT) if args.delete("-v")
     @run_it = args.delete("--run")
     @print_sql = args.delete("--sql")
+
+    if args.include?("--help") || args.include?("-h")
+      puts "[RAILS_ROOT=x] [PROFILE=true]"
+      puts "report_sanity_checker [--run] [--sql] [--help] [directory] [file]"
+      exit 1
+    end
+
     @patterns = args
     self
   end
@@ -221,13 +228,14 @@ class ReportSanityChecker
     # see https://github.com/ManageIQ/manageiq/pull/13675
     # see last message of https://github.com/ManageIQ/manageiq/pull/13675 (include changes were reverted)
     if includes_available
+      puts "","includes","========", ""
       # include_for_find can make up for missing entries in includes_declared - merging it
       sm_includes = union_hash(includes_declared, includes_generated)
       declared_v_generated_includes = union_hash(includes_declared, includes_generated.deep_merge(include_for_find))
       if declared_v_generated_includes == includes_declared
-        puts "", "unneeded 'includes:' block (this is only accurate as of I release)"
+        puts "unneeded 'includes:' block"
       else
-        puts "", "includes declared: #{includes_declared}"
+        puts "includes declared: #{includes_declared}"
         puts "includes generated: #{includes_generated}"
       end
     elsif rpt.include
@@ -238,9 +246,12 @@ class ReportSanityChecker
     # these are already generated, not needed to add them
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
-    puts "includes: #{full_includes_tbls}"
+    puts "", "includes: #{full_includes_tbls}"
     # invalid entries
-    trace_includes(klass, full_includes_tbls) if full_includes_tbls
+    if full_includes_tbls
+      puts "", "includes validity", "======== ========", ""
+      trace_includes(klass, full_includes_tbls)
+    end
   rescue NameError => e
     puts "not able to fetch class: #{e.message}"
   end
@@ -272,6 +283,7 @@ class ReportSanityChecker
     puts e.backtrace
   end
 
+  # copy of MiqReport::Generator#_generate_table
   def _generate_table(rpt, options = {})
     #return build_table_from_report(rpt, options) if rpt.db == rpt.class.name # Build table based on data from passed in report object
     raise "table_from_report not supported" if rpt.db == rpt.class.name # Build table based on data from passed in report object
@@ -329,15 +341,15 @@ class ReportSanityChecker
           "custom"
         elsif f.virtual_reflection?
           "join"
-        elsif f.virtual_attribute? #klass && klass.virtual_attribute?(col)
+        elsif f.virtual_attribute?
           "attr"
+        elsif klass.nil?
+          "unknown.k"
+        elsif f.try(:db_column?)
+          # these are both good - no reason to call them out
+          "" # f.associations.present? ? "join" : "db"
         else
-          if klass && (f.target.has_attribute?(f.column) || f.target.try(:attribute_alias?, f.column))
-            # these are both good - no reason to call them out
-            "" # f.associations.present? ? "join" : "db"
-          else
-            "unknown"
-          end
+          "unknown"
         end
 
     # 3
