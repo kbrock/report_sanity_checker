@@ -244,6 +244,7 @@ class ReportSanityChecker
       puts "", "unneeded blank includes block"
     end
     # these are not needed for the query (may be needed for the screen or ruby attributes)
+    # generator includes this
     puts "", "extra includes: #{include_for_find.inspect}" if include_for_find.present?
     # these are already generated, not needed to add them
     unneeded_iff = union_hash(includes_tbls, include_for_find)
@@ -268,10 +269,19 @@ class ReportSanityChecker
       if run_it
         start_time = fetch_time = Time.now
         count = 0
+        if ENV["PROFILE"].to_s !~ /true/i
         rslt = _generate_table(rpt, options)
         puts_table_sql(rslt) if print_sql
         fetch_time = Time.now
         count = rslt.to_a.size
+        else
+          puts bookend(rpt.name, gc: true) {
+            rslt = _generate_table(rpt, options)
+            puts_table_sql(rslt) if print_sql
+            fetch_time = Time.now
+            count = rslt.to_a.size
+          }
+        end
         end_time  = Time.now
         fmt_all   = Time.at(end_time - start_time).utc.strftime("%H:%M:%S") # %U for ms
         fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S")
@@ -392,7 +402,9 @@ class ReportSanityChecker
           trace_includes(relation.klass, v)
         end
       elsif klass.virtual_attribute?(k)
+        puts "virt att: #{klass.name}.#{k}"
       elsif klass.virtual_reflection?(k)
+        puts "virt ref: #{klass.name}.#{k}"
       else
         puts "unknown:  #{klass.name}.#{k}"
       end
