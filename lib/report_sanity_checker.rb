@@ -30,7 +30,7 @@ class ReportSanityChecker
 
     if args.include?("--help") || args.include?("-h")
       puts "[RAILS_ROOT=x] [PROFILE=true]"
-      puts "report_sanity_checker [--run] [--sql] [--help] [directory] [file]"
+      puts "report_sanity_checker [--run] [--sql] [--help] [directory|file]"
       exit 1
     end
 
@@ -59,6 +59,7 @@ class ReportSanityChecker
   # - MiqReport:
   #   title: Copy of Chargeback - Test SL
   #
+  # TODO: run sanity for all reports in the file?
   def parse_file(filename)
     return filename if filename.kind_of?(MiqReport)
     data = YAML.load_file(filename)
@@ -84,6 +85,7 @@ class ReportSanityChecker
         name = filename
         name = "#{name} (#{rpt.db})" if rpt.db != guess_class(filename)
 
+        # filename header (sometimes add in table name)
         puts "","#{name}:",""
       end
       begin
@@ -177,7 +179,7 @@ class ReportSanityChecker
     # full_includes without include_for_find merged in
     includes_tbls = includes_available ? includes_declared : includes_generated
 
-    # columns defined via includes / (joins)  
+    # columns defined via includes / (joins)
     rpt_cols = Set.new(rpt.cols)
     sort_cols = Set.new(Array.wrap(rpt.sortby))
     if (miq_cols = rpt.conditions.try(:fields))
@@ -246,9 +248,9 @@ class ReportSanityChecker
     # these are already generated, not needed to add them
     unneeded_iff = union_hash(includes_tbls, include_for_find)
     puts "", "unneeded includes_for_find: #{unneeded_iff.inspect}" if unneeded_iff.present?
-    puts "", "includes: #{full_includes_tbls}"
-    # invalid entries
-    if full_includes_tbls
+    if full_includes_tbls && !full_includes_tbls.empty? && full_includes_tbls != (includes_declared||includes_generated)
+      puts "", "includes: #{full_includes_tbls}"
+      # invalid entries
       puts "", "includes validity", "======== ========", ""
       trace_includes(klass, full_includes_tbls)
     end
@@ -262,6 +264,7 @@ class ReportSanityChecker
     # code based upon MiqReport::Generator#generate_table
     # rpt.generate_table(:user => User.super_admin)
     User.with_user(User.super_admin) do
+      # run it implies printing the sql
       if run_it
         start_time = fetch_time = Time.now
         count = 0
@@ -274,7 +277,8 @@ class ReportSanityChecker
         fmt_table = Time.at(fetch_time - start_time).utc.strftime("%H:%M:%S")
         fmt_fetch = Time.at(end_time - fetch_time).utc.strftime("%H:%M:%S")
         puts "", "report ran with #{count} rows in #{fmt_all}s. table: #{fmt_table}s, fetch: #{fmt_fetch}s"
-      elsif print_sql
+      end
+      if print_sql
         rslt = _generate_table(rpt, options)
         puts_table_sql(rslt) if print_sql
       end
@@ -330,7 +334,7 @@ class ReportSanityChecker
       print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
     end
   end
-  
+
   def print_row(tbl, klass, col, in_rpt, in_inc, in_sort, in_col, in_miq)
     *class_names, col_name = [klass&.name || "unknown"] + col.split(".")
     field_name = "#{class_names.join(".")}-#{col_name.downcase}"
@@ -354,7 +358,7 @@ class ReportSanityChecker
       #   "db"
       # end
     # 2
-      va = 
+      va =
         if f.kind_of?(MiqExpression::Tag) # => f.tag?
           "custom"
         elsif f.virtual_reflection?
